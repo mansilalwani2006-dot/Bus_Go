@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bus Search</title>
+<style>
+/* BusGo: highway-sign green, paper background, amber signal */
+:root { --bg:#f3f5f1; --card:#fff; --ink:#15221b; --muted:#5d6b63; --line:#dbe2dc; --sign:#0b5d3b; --sign-2:#0f7a4e;
+  --amber:#f2b01e; --ok-bg:#dff3e8; --ok:#0b5d3b; --low-bg:#fff1cc; --low:#7a5200; --out-bg:#f8dcd8; --out:#9b2c20; --shadow:0 2px 10px rgba(21,34,27,.08); }
+@media (prefers-color-scheme: dark) { :root { --bg:#0f1713; --card:#18231d; --ink:#e8f0ea; --muted:#9aa9a0; --line:#2a3a31;
+  --sign:#0e4d33; --sign-2:#1a8a5a; --ok-bg:#17382a; --ok:#8fe0b4; --low-bg:#3b3010; --low:#f5cf6a; --out-bg:#3c1d19; --out:#f0a095; --shadow:none; } }
+* { box-sizing: border-box; }
+body { margin:0; font-family:"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif; background:var(--bg); color:var(--ink); font-variant-numeric:tabular-nums; -webkit-tap-highlight-color:transparent; }
+button, input { font:inherit; }
+:focus-visible { outline:3px solid var(--amber); outline-offset:2px; }
+
+.hero { background:var(--sign); padding:calc(18px + env(safe-area-inset-top,0px)) 14px 70px; }
+.sign { max-width:720px; margin:0 auto; border:2px solid rgba(255,255,255,.85); border-radius:14px; padding:16px 18px; color:#fff; }
+.sign h1 { margin:0; font-size:1.9rem; font-weight:800; letter-spacing:-.02em; }
+.sign p { margin:4px 0 0; opacity:.85; font-size:.95rem; }
+.wrap { max-width:720px; margin:0 auto; padding:0 14px calc(32px + env(safe-area-inset-bottom,0px)); }
+
+.box { background:var(--card); border-radius:16px; box-shadow:var(--shadow); border:1px solid var(--line); padding:16px; margin-top:-46px; }
+label { display:block; font-size:.82rem; font-weight:600; color:var(--muted); margin-bottom:5px; }
+input { width:100%; min-height:48px; padding:10px 12px; font-size:1rem; color:var(--ink); background:var(--bg); border:1.5px solid var(--line); border-radius:10px; }
+input:focus { border-color:var(--sign-2); outline:none; box-shadow:0 0 0 3px rgba(15,122,78,.2); }
+.row { display:flex; gap:8px; align-items:flex-end; margin-bottom:14px; }
+.row > div { flex:1; min-width:0; }
+.field { margin-bottom:14px; }
+button { border:0; border-radius:10px; cursor:pointer; }
+.swap { width:44px; height:48px; flex:none; background:var(--bg); color:var(--sign-2); font-size:1.2rem; border:1.5px solid var(--line); }
+.go { width:100%; min-height:50px; background:var(--sign); color:#fff; font-weight:700; font-size:1.05rem; }
+.go:active { background:var(--sign-2); } .go:disabled { opacity:.45; }
+
+.chips { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+.chip { min-height:38px; padding:0 14px; background:var(--card); color:var(--ink); border:1.5px solid var(--line); border-radius:999px; font-size:.9rem; }
+.chip.big { min-height:44px; font-weight:600; }
+.chip:active, .chip.on { background:var(--sign); border-color:var(--sign); color:#fff; }
+
+h2 { font-size:1.1rem; margin:22px 0 8px; font-weight:700; }
+h2 small { display:block; margin-top:2px; color:var(--muted); font-weight:400; font-size:.85rem; }
+.alert { padding:12px 14px; border-radius:10px; margin-top:16px; font-size:.95rem; border-left:4px solid; }
+.err { background:var(--out-bg); color:var(--out); border-color:var(--out); }
+.warn { background:var(--low-bg); color:var(--low); border-color:var(--amber); }
+
+.card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; margin-top:12px; box-shadow:var(--shadow); }
+.route { font-weight:700; color:var(--sign-2); margin-bottom:8px; }
+.top { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; }
+.name { font-weight:700; } .type { color:var(--muted); font-size:.85rem; margin-top:2px; }
+.fare { font-size:1.35rem; font-weight:800; }
+.times { display:flex; align-items:center; gap:10px; margin:14px 0; font-size:1.3rem; font-weight:800; white-space:nowrap; }
+.times small { font-weight:500; font-size:.7rem; color:var(--muted); }
+.times .dur { flex:1; min-width:30px; text-align:center; font-size:.78rem; font-weight:500; color:var(--muted); border-bottom:2px solid var(--sign-2); line-height:.1; position:relative; }
+.times .dur::before, .times .dur::after { content:""; position:absolute; bottom:-5px; width:8px; height:8px; border-radius:50%; background:var(--sign-2); }
+.times .dur::before { left:-4px; } .times .dur::after { right:-4px; }
+.times .dur span { background:var(--card); padding:0 6px; position:relative; }
+.bottom { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.badge { padding:5px 10px; border-radius:999px; font-size:.8rem; font-weight:600; }
+.ok { background:var(--ok-bg); color:var(--ok); } .low { background:var(--low-bg); color:var(--low); } .out { background:var(--out-bg); color:var(--out); }
+.sel { min-height:42px; padding:0 16px; background:var(--amber); color:#1d1500; font-weight:700; }
+.sel:disabled { opacity:.35; cursor:not-allowed; }
+
+.overlay { position:fixed; inset:0; background:rgba(8,16,12,.6); display:none; z-index:10; align-items:flex-end; justify-content:center; }
+.overlay.open { display:flex; }
+.panel { background:var(--card); color:var(--ink); width:100%; max-width:560px; max-height:92vh; overflow:auto; border-radius:20px 20px 0 0; padding:16px 16px 0; animation:rise .25s ease-out; }
+@keyframes rise { from { transform:translateY(40px); opacity:0; } }
+.ph { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom:6px; }
+.x { width:40px; height:40px; padding:0; border-radius:50%; background:var(--bg); color:var(--ink); font-size:1.3rem; flex:none; }
+.legend { display:flex; gap:14px; font-size:.8rem; color:var(--muted); margin:10px 0; flex-wrap:wrap; }
+.legend i { display:inline-block; width:14px; height:14px; border-radius:4px; vertical-align:-2px; margin-right:5px; border:1.5px solid; }
+.front { text-align:center; font-size:.75rem; color:var(--muted); }
+.seats { display:grid; grid-template-columns:1fr 1fr 22px 1fr 1fr; gap:8px; max-width:300px; margin:6px auto 12px; padding:14px; border:2px solid var(--line); border-radius:18px 18px 12px 12px; }
+.seat { min-height:42px; padding:0; font-size:.9rem; font-weight:600; background:var(--card); border:1.5px solid var(--sign-2); color:var(--sign-2); border-radius:8px 8px 4px 4px; }
+.seat.pick { background:var(--sign); border-color:var(--sign); color:#fff; box-shadow:0 0 0 2px var(--amber); }
+.seat.taken { background:repeating-linear-gradient(45deg,var(--line),var(--line) 4px,transparent 4px,transparent 8px); border-color:var(--line); color:var(--muted); cursor:not-allowed; }
+.summary { background:var(--bg); border-radius:10px; padding:10px 12px; margin:8px 0 12px; line-height:1.5; }
+.msg { color:var(--out); font-size:.85rem; min-height:1.2em; margin-bottom:6px; }
+#confirm, #doneBtn { position:sticky; bottom:0; margin-bottom:calc(12px + env(safe-area-inset-bottom,0px)); box-shadow:0 -8px 12px var(--card); }
+.ticket { border:2px dashed var(--sign-2); border-radius:14px; padding:12px 14px; margin:12px 0; }
+.ticket div { display:flex; justify-content:space-between; gap:12px; padding:5px 0; font-size:.92rem; border-bottom:1px solid var(--line); }
+.ticket div:last-child { border:0; font-size:1.05rem; }
+.ticket div b { text-align:right; }
+.tick { text-align:center; font-size:2.4rem; color:var(--ok); }
+
+/* Splash */
+#splash { position:fixed; inset:0; z-index:100; background:var(--sign); color:#fff; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; transition:opacity .5s, visibility .5s; }
+#splash.hide { opacity:0; visibility:hidden; }
+#splash h1 { margin:18px 0 4px; font-size:2.4rem; font-weight:800; letter-spacing:-.02em; }
+#splash p { margin:0 0 26px; opacity:.85; }
+#splash small { margin-top:22px; opacity:.6; font-size:.75rem; }
+.s-bus { animation:drive 1s ease-in-out infinite alternate; }
+.s-bar { width:160px; height:5px; background:rgba(255,255,255,.25); border-radius:3px; overflow:hidden; }
+.s-bar span { display:block; height:100%; width:0; background:var(--amber); animation:load 2.2s linear forwards; }
+@keyframes drive { from { transform:translateX(-14px); } to { transform:translateX(14px); } }
+@keyframes load { to { width:100%; } }
+@media (prefers-reduced-motion: reduce) { .s-bus, .panel { animation:none; } }
+
+/* Live location + tracking */
+.loc { background:none; color:var(--sign-2); font-weight:600; padding:0; min-height:36px; margin:-4px 0 6px; }
+.locmsg { font-size:.85rem; color:var(--muted); margin:0 0 12px; }
+.locmsg:empty { display:none; }
+.trk { min-height:42px; padding:0 16px; background:var(--sign); color:#fff; font-weight:700; margin-top:10px; }
+.status { font-size:1.15rem; font-weight:700; margin:10px 0 6px; }
+.track { position:relative; height:42px; margin:12px 14px 4px; }
+.tl { position:absolute; left:0; right:0; top:28px; height:6px; border-radius:3px; background:var(--line); }
+.tf { display:block; height:100%; background:var(--sign-2); border-radius:3px; }
+.tb { position:absolute; top:0; transform:translateX(-50%); font-size:1.7rem; line-height:1; }
+.tends { display:flex; justify-content:space-between; font-weight:700; margin:6px 0 10px; }
+.tends small { font-weight:400; color:var(--muted); }
+.note { font-size:.78rem; color:var(--muted); margin:0 0 calc(16px + env(safe-area-inset-bottom,0px)); }
+
+/* My bookings */
+.hbar { max-width:720px; margin:0 auto 10px; display:flex; justify-content:flex-end; }
+.mybtn { min-height:40px; padding:0 16px; border-radius:999px; background:rgba(255,255,255,.16); color:#fff; font-weight:600; border:1.5px solid rgba(255,255,255,.7); }
+.acts { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:10px; }
+.acts .trk { margin-top:0; }
+.chip.warnbtn { background:var(--out-bg); border-color:var(--out); color:var(--out); font-weight:600; }
+.empty { padding:26px 8px; text-align:center; color:var(--muted); line-height:1.5; }
+#bk { padding-bottom:calc(16px + env(safe-area-inset-bottom,0px)); }
+
+/* Wallet */
+.hbar { gap:8px; }
+.balcard { background:var(--sign); color:#fff; border-radius:16px; padding:16px; margin:8px 0 12px; }
+.balcard small { opacity:.8; } .balcard .big { font-size:2rem; font-weight:800; }
+.wrow { display:flex; gap:8px; margin:10px 0 4px; } .wrow input { flex:1; }
+.tx { display:flex; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px solid var(--line); }
+.tx small { display:block; color:var(--muted); font-weight:400; font-size:.78rem; }
+.amt { font-weight:700; text-align:right; } .amt.credit { color:var(--ok); } .amt.debit { color:var(--out); }
+.srv { margin:16px 0 calc(16px + env(safe-area-inset-bottom,0px)); padding-top:12px; border-top:1px solid var(--line); }
+
+</style>
+</head>
+<body>
+<div id="splash">
+  <svg class="s-bus" width="120" height="80" viewBox="0 0 120 80" aria-hidden="true">
+    <rect x="6" y="10" width="108" height="50" rx="12" fill="#fff"/>
+    <rect x="16" y="20" width="22" height="16" rx="3" fill="#0b5d3b"/>
+    <rect x="44" y="20" width="22" height="16" rx="3" fill="#0b5d3b"/>
+    <rect x="72" y="20" width="22" height="16" rx="3" fill="#0b5d3b"/>
+    <rect x="98" y="20" width="10" height="26" rx="3" fill="#bfe3cf"/>
+    <rect x="6" y="46" width="108" height="6" fill="#f2b01e"/>
+    <circle cx="32" cy="62" r="10" fill="#212529"/><circle cx="32" cy="62" r="4" fill="#adb5bd"/>
+    <circle cx="86" cy="62" r="10" fill="#212529"/><circle cx="86" cy="62" r="4" fill="#adb5bd"/>
+  </svg>
+  <h1>BusGo</h1>
+  <p>Your journey starts here</p>
+  <div class="s-bar"><span></span></div>
+  <small>Tap to skip</small>
+</div>
+
+<div class="hero"><div class="hbar"><button type="button" class="mybtn" id="walBtn">Wallet</button><button type="button" class="mybtn" id="myBtn">My bookings</button></div><div class="sign"><h1>Where to?</h1><p>Compare buses, fares and seats</p></div></div>
+
+<div class="wrap">
+  <form class="box" id="form" novalidate>
+    <div class="row">
+      <div><label for="from">From</label><input id="from" list="cities" placeholder="Origin" autocomplete="off"></div>
+      <button type="button" class="swap" id="swap" title="Swap">&#8646;</button>
+      <div><label for="to">To</label><input id="to" list="cities" placeholder="Destination" autocomplete="off"></div>
+    </div>
+    <button type="button" class="loc" id="locBtn">&#128205; Use my location</button>
+    <div class="locmsg" id="locMsg"></div>
+    <div class="field"><label for="date">Travel date</label><input type="date" id="date"><div class="chips" id="dateChips"></div></div>
+    <button class="go" type="submit">Search buses</button>
+    <datalist id="cities"></datalist>
+  </form>
+  <div id="out"></div>
+</div>
+
+<div class="overlay" id="sheet"><div class="panel" id="panel"></div></div>
+
+<script>
+// ---- Sample data (replace with your own routes) ----
+var buses = {
+  1: { name: 'Express Liner',  type: 'AC Seater',     seats: 40 },
+  2: { name: 'Night Rider',    type: 'AC Sleeper',    seats: 30 },
+  3: { name: 'City Connect',   type: 'Non-AC Seater', seats: 50 },
+  4: { name: 'Royal Cruiser',  type: 'Luxury Volvo',  seats: 36 }
+};
+// Routes: [from, to, duration in minutes, base fare]. Every route works both ways.
+var routes = [
+  ['Mumbai', 'Pune', 210, 450], ['Mumbai', 'Goa', 600, 1200], ['Mumbai', 'Nashik', 270, 400],
+  ['Mumbai', 'Ahmedabad', 540, 900], ['Pune', 'Goa', 540, 900], ['Pune', 'Hyderabad', 660, 1150],
+  ['Delhi', 'Jaipur', 300, 700], ['Delhi', 'Agra', 240, 500], ['Delhi', 'Chandigarh', 270, 550],
+  ['Delhi', 'Lucknow', 480, 850], ['Delhi', 'Amritsar', 480, 900], ['Jaipur', 'Ahmedabad', 600, 1000],
+  ['Bangalore', 'Chennai', 360, 750], ['Bangalore', 'Hyderabad', 600, 1100], ['Bangalore', 'Mysore', 180, 350],
+  ['Bangalore', 'Goa', 600, 1250], ['Chennai', 'Hyderabad', 660, 1100], ['Kolkata', 'Bhubaneswar', 420, 800]
+];
+var times = ['05:30', '07:00', '09:00', '11:30', '14:15', '17:00', '20:00', '22:30'];
+var fareX = { 1: 1, 2: 1.25, 3: 0.7, 4: 1.4 };   // fare multiplier per bus type
+var schedules = [];
+routes.forEach(function (r, ri) {
+  [0, 1].forEach(function (back) {                 // 0 = forward, 1 = return trip
+    for (var k = 0; k < 4; k++) {                  // 4 buses a day on each direction
+      var bus = ((ri + k + back) % 4) + 1;
+      schedules.push({
+        bus: bus,
+        from: back ? r[1] : r[0], to: back ? r[0] : r[1],
+        dep: times[(ri * 3 + 2 * k + back) % 8],
+        dur: r[2] + (bus === 3 ? 30 : 0),          // non-AC bus is a bit slower
+        fare: Math.round(r[3] * fareX[bus] / 10) * 10
+      });
+    }
+  });
+});
+
+// City coordinates [latitude, longitude] (used for "Use my location" and live tracking)
+var cityCoords = {
+  Mumbai: [19.0760, 72.8777], Pune: [18.5204, 73.8567], Goa: [15.4909, 73.8278], Nashik: [19.9975, 73.7898],
+  Ahmedabad: [23.0225, 72.5714], Hyderabad: [17.3850, 78.4867], Delhi: [28.6139, 77.2090], Jaipur: [26.9124, 75.7873],
+  Agra: [27.1767, 78.0081], Chandigarh: [30.7333, 76.7794], Lucknow: [26.8467, 80.9462], Amritsar: [31.6340, 74.8723],
+  Bangalore: [12.9716, 77.5946], Chennai: [13.0827, 80.2707], Mysore: [12.2958, 76.6394], Kolkata: [22.5726, 88.3639],
+  Bhubaneswar: [20.2961, 85.8245]
+};
+
+// Demo bookings: a repeatable "booked seats" number per bus, route and date
+function booked(i, date, total) {
+  var h = 7, s = i + date;
+  for (var k = 0; k < s.length; k++) h = (h * 31 + s.charCodeAt(k)) >>> 0;
+  return h % (total + 1);
+}
+
+var $ = function (id) { return document.getElementById(id); };
+function pad(n) { return (n < 10 ? '0' : '') + n; }
+function fmt(d) { var h = d.getHours(), a = h >= 12 ? 'PM' : 'AM'; return pad(h % 12 || 12) + ':' + pad(d.getMinutes()) + ' ' + a; }
+function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function today() { var d = new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+
+// City suggestions
+var set = {};
+schedules.forEach(function (s) { set[s.from] = 1; set[s.to] = 1; });
+$('cities').innerHTML = Object.keys(set).sort().map(function (c) { return '<option value="' + c + '">'; }).join('');
+$('date').value = $('date').min = today();
+
+$('swap').onclick = function () { var t = $('from').value; $('from').value = $('to').value; $('to').value = t; };
+
+// ---- Quick picks: date chips, popular routes, sorting ----
+var sortKey = 'time';
+function dayChip(n, label) {
+  var d = new Date(); d.setDate(d.getDate() + n);
+  var v = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  return '<button type="button" class="chip" data-date="' + v + '">' + label + '</button>';
+}
+$('dateChips').innerHTML = dayChip(0, 'Today') + dayChip(1, 'Tomorrow') + dayChip(2, 'Day after');
+$('dateChips').addEventListener('click', function (e) {
+  var c = e.target.closest('.chip'); if (c) $('date').value = c.getAttribute('data-date');
+});
+var popular = [['Mumbai', 'Pune'], ['Delhi', 'Jaipur'], ['Bangalore', 'Mysore'], ['Delhi', 'Agra']];
+$('out').innerHTML = '<h2>Popular routes</h2><div class="chips">' + popular.map(function (p) {
+  return '<button type="button" class="chip big" data-from="' + p[0] + '" data-to="' + p[1] + '">' + p[0] + ' &rarr; ' + p[1] + '</button>';
+}).join('') + '</div>';
+$('out').addEventListener('click', function (e) {
+  var c = e.target.closest('.chip'); if (!c) return;
+  if (c.hasAttribute('data-sort')) sortKey = c.getAttribute('data-sort');
+  else { $('from').value = c.getAttribute('data-from'); $('to').value = c.getAttribute('data-to'); }
+  $('form').onsubmit({ preventDefault: function () {} });
+});
+
+$('form').onsubmit = function (e) {
+  e.preventDefault();
+  var from = $('from').value.trim(), to = $('to').value.trim(), date = $('date').value, out = $('out');
+  if (!from || !to || !date) { out.innerHTML = '<div class="alert err">Please fill in all fields.</div>'; return; }
+  if (from.toLowerCase() === to.toLowerCase()) { out.innerHTML = '<div class="alert err">Origin and destination must be different.</div>'; return; }
+  if (date < today()) { out.innerHTML = '<div class="alert err">Travel date cannot be in the past.</div>'; return; }
+
+  var found = schedules.map(function (s, i) { s.i = i; return s; }).filter(function (s) {
+    return s.from.toLowerCase() === from.toLowerCase() && s.to.toLowerCase() === to.toLowerCase();
+  }).sort(function (a, b) {
+    if (sortKey === 'fare' && a.fare !== b.fare) return a.fare - b.fare;
+    if (sortKey === 'dur' && a.dur !== b.dur) return a.dur - b.dur;
+    return a.dep < b.dep ? -1 : 1;
+  });
+
+  var html = '<h2>' + esc(from) + ' &rarr; ' + esc(to) + ' <small>' +
+             new Date(date + 'T00:00').toDateString() + '</small></h2>';
+  if (found.length > 1) html += '<div class="chips">' + [['time', 'Earliest'], ['fare', 'Cheapest'], ['dur', 'Fastest']].map(function (o) {
+    return '<button type="button" class="chip sortchip' + (sortKey === o[0] ? ' on' : '') + '" data-sort="' + o[0] + '">' + o[1] + '</button>';
+  }).join('') + '</div>';
+  // Builds one bus card (showRoute adds the "From -> To" line for suggestions)
+  var card = function (s, showRoute) {
+    var b = buses[s.bus];
+    var left = b.seats - taken(s.i, date, b.seats).length;
+    var dep = new Date(date + 'T' + s.dep), arr = new Date(dep.getTime() + s.dur * 60000);
+    var next = arr.toDateString() !== dep.toDateString() ? ' <small>(+1 day)</small>' : '';
+    var h = Math.floor(s.dur / 60), m = s.dur % 60;
+    var badge = left === 0 ? '<span class="badge out">Sold out</span>'
+              : left <= 5  ? '<span class="badge low">' + left + ' seats left</span>'
+              : '<span class="badge ok">' + left + ' seats available</span>';
+    return '<div class="card">' +
+      (showRoute ? '<div class="route">' + esc(s.from) + ' &rarr; ' + esc(s.to) + '</div>' : '') +
+      '<div class="top"><div><div class="name">' + esc(b.name) + '</div><div class="type">' + esc(b.type) + '</div></div>' +
+      '<div class="fare">&#8377;' + s.fare.toFixed(2) + '</div></div>' +
+      '<div class="times"><span>' + fmt(dep) + '</span><span class="dur"><span>' + h + 'h ' + (m ? m + 'm' : '') + '</span></span><span>' + fmt(arr) + next + '</span></div>' +
+      '<div class="bottom">' + badge + '<button class="sel" data-i="' + s.i + '" data-d="' + date + '"' + (left === 0 ? ' disabled' : '') + '>Select seats</button></div></div>';
+  };
+
+  if (found.length) {
+    found.forEach(function (s) { html += card(s, false); });
+  } else {
+    // No direct bus: suggest other buses with their schedule
+    var f = from.toLowerCase(), t = to.toLowerCase();
+    var byTime = function (a, b) { return a.dep < b.dep ? -1 : 1; };
+    var fromOrigin = schedules.filter(function (s) { return s.from.toLowerCase() === f; }).sort(byTime);
+    var toDest = schedules.filter(function (s) { return s.to.toLowerCase() === t; }).sort(byTime);
+    html += '<div class="alert warn">No direct bus on this route. Here are other buses you can take, with their schedules:</div>';
+    if (fromOrigin.length) {
+      html += '<h2>Buses leaving ' + esc(from) + '</h2>';
+      fromOrigin.slice(0, 6).forEach(function (s) { html += card(s, true); });
+    }
+    if (toDest.length) {
+      html += '<h2>Buses going to ' + esc(to) + '</h2>';
+      toDest.slice(0, 6).forEach(function (s) { html += card(s, true); });
+    }
+    if (!fromOrigin.length && !toDest.length) {
+      var seen = {}, popular = [];
+      schedules.slice().sort(byTime).forEach(function (s) {
+        var k = s.from + '|' + s.to;
+        if (!seen[k] && popular.length < 8) { seen[k] = 1; popular.push(s); }
+      });
+      html += '<h2>Popular buses</h2>';
+      popular.forEach(function (s) { html += card(s, true); });
+    }
+  }
+  out.innerHTML = html;
+};
+
+// ================= Seat selection panel =================
+var userB = {};                                   // seats booked on this phone: "scheduleIndex|date" -> [seat numbers]
+try { userB = JSON.parse(localStorage.getItem('busBookings') || '{}'); } catch (e) {}
+function saveB() { try { localStorage.setItem('busBookings', JSON.stringify(userB)); } catch (e) {} }
+
+// Which seats are already taken (repeatable demo seats + seats you booked)
+function taken(i, date, total) {
+  var n = booked(i, date, total), seed = 7, str = i + date, all = [];
+  for (var k = 0; k < str.length; k++) seed = (seed * 31 + str.charCodeAt(k)) >>> 0;
+  for (var q = 1; q <= total; q++) all.push(q);
+  for (var j = all.length - 1; j > 0; j--) {      // seeded shuffle
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    var r = Math.floor(seed / 4294967296 * (j + 1)), t = all[j]; all[j] = all[r]; all[r] = t;
+  }
+  return all.slice(0, n).concat(userB[i + '|' + date] || []);
+}
+
+var sheet = $('sheet'), panel = $('panel'), cur = null;
+
+$('out').addEventListener('click', function (e) {
+  var b = e.target.closest('.sel');
+  if (b && !b.disabled) openSheet(+b.getAttribute('data-i'), b.getAttribute('data-d'));
+});
+sheet.addEventListener('click', function (e) { if (e.target === sheet) closeSheet(); });
+function closeSheet() { sheet.classList.remove('open'); document.body.style.overflow = ''; }
+
+function openSheet(i, date) {
+  var s = schedules[i], b = buses[s.bus];
+  var dep = new Date(date + 'T' + s.dep), arr = new Date(dep.getTime() + s.dur * 60000);
+  cur = { i: i, date: date, s: s, b: b, sel: [], taken: taken(i, date, b.seats), dep: dep, arr: arr };
+
+  var seatsHtml = '';
+  for (var r = 0; r * 4 < b.seats; r++) {
+    for (var c = 0; c < 4; c++) {
+      var n = r * 4 + c + 1;
+      if (c === 2) seatsHtml += '<span></span>';  // aisle
+      if (n > b.seats) { seatsHtml += '<span></span>'; continue; }
+      var tk = cur.taken.indexOf(n) > -1;
+      seatsHtml += '<button type="button" class="seat' + (tk ? ' taken' : '') + '" data-n="' + n + '"' + (tk ? ' disabled' : '') + '>' + n + '</button>';
+    }
+  }
+  panel.innerHTML =
+    '<div class="ph"><div><div class="name">' + esc(b.name) + ' <span class="type">&middot; ' + esc(b.type) + '</span></div>' +
+    '<div class="route" style="margin:2px 0">' + esc(s.from) + ' &rarr; ' + esc(s.to) + '</div>' +
+    '<div class="type">' + dep.toDateString() + ' &middot; ' + fmt(dep) + ' &ndash; ' + fmt(arr) + '</div></div>' +
+    '<button class="x" id="xBtn" type="button">&times;</button></div>' +
+    '<div class="legend"><span><i style="border-color:#28a745;background:#fff"></i>Available</span>' +
+    '<span><i style="border-color:#1976d2;background:#1976d2"></i>Selected</span>' +
+    '<span><i style="border-color:#ced4da;background:#ced4da"></i>Booked</span></div>' +
+    '<div class="front">&#9660; Front of bus</div><div class="seats">' + seatsHtml + '</div>' +
+    '<div class="summary" id="sum"></div>' +
+    '<div class="field"><label for="pn">Passenger name</label><input id="pn" autocomplete="name" placeholder="Full name"></div>' +
+    '<div class="field"><label for="pp">Mobile number</label><input id="pp" type="tel" inputmode="numeric" maxlength="10" placeholder="10-digit number"></div>' +
+    '<div class="msg" id="msg"></div><button class="go" id="confirm" type="button" disabled>Pay from wallet &amp; confirm</button>';
+  updateSum();
+  sheet.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  panel.scrollTop = 0;
+}
+
+function updateSum() {
+  var list = cur.sel.slice().sort(function (a, b) { return a - b; });
+  $('sum').innerHTML = list.length
+    ? 'Seats: <b>' + list.join(', ') + '</b><br>Total fare: <b>&#8377;' + (list.length * cur.s.fare).toFixed(2) + '</b> <small>(' + list.length + ' &times; &#8377;' + cur.s.fare.toFixed(2) + ')</small>'
+    : 'Tap a green seat to select it (up to 6).';
+  $('confirm').disabled = !list.length;
+}
+
+panel.addEventListener('click', function (e) {
+  var t = e.target;
+  if (t.id === 'xBtn') return closeSheet();
+  if (t.id === 'doneBtn') { closeSheet(); $('form').onsubmit({ preventDefault: function () {} }); return; }
+  if (t.id === 'confirm') return confirmBooking();
+  if (t.classList.contains('seat') && !t.disabled) {
+    var n = +t.getAttribute('data-n'), at = cur.sel.indexOf(n);
+    $('msg').textContent = '';
+    if (at > -1) { cur.sel.splice(at, 1); t.classList.remove('pick'); }
+    else if (cur.sel.length >= 6) { $('msg').textContent = 'You can select up to 6 seats at a time.'; return; }
+    else { cur.sel.push(n); t.classList.add('pick'); }
+    updateSum();
+  }
+});
+
+function confirmBooking() {
+  var name = $('pn').value.trim(), phone = $('pp').value.replace(/\s/g, '');
+  if (name.length < 2) { $('msg').textContent = 'Please enter the passenger name.'; return; }
+  if (!/^\d{10}$/.test(phone)) { $('msg').textContent = 'Please enter a valid 10-digit mobile number.'; return; }
+
+  var paySeats = cur.sel.slice().sort(function (a, b) { return a - b; });
+  $('confirm').disabled = true; $('msg').textContent = 'Processing wallet payment...';
+  walletOp('pay', { schedule_id: cur.i + 1, date: cur.date, seats: paySeats, name: name, phone: phone, amount: cur.s.fare * paySeats.length }).then(function (r) {
+    if (r.error) { $('msg').textContent = r.error; $('confirm').disabled = false; return; }
+    paidRef = r.booking_ref; refreshWal(); confirmPaid(name, phone);
+  });
+}
+function confirmPaid(name, phone) {
+  var key = cur.i + '|' + cur.date, seats = cur.sel.slice().sort(function (a, b) { return a - b; });
+  userB[key] = (userB[key] || []).concat(seats);
+  saveB();
+  var id = paidRef, s = cur.s;
+  lastTrip = { i: cur.i, date: cur.date, id: id, name: name, seats: seats, status: 'confirmed' };
+  addTrip(lastTrip);
+  updateMyBtn();
+  panel.innerHTML =
+    '<div class="tick">&#10004;</div><h2 style="text-align:center;margin:0">Booking confirmed</h2>' +
+    '<div class="ticket">' +
+    '<div><span>Booking ID</span><b>' + id + '</b></div>' +
+    '<div><span>Passenger</span><b>' + esc(name) + '</b></div>' +
+    '<div><span>Mobile</span><b>' + esc(phone) + '</b></div>' +
+    '<div><span>Route</span><b>' + esc(s.from) + ' &rarr; ' + esc(s.to) + '</b></div>' +
+    '<div><span>Date</span><b>' + cur.dep.toDateString() + '</b></div>' +
+    '<div><span>Time</span><b>' + fmt(cur.dep) + ' &ndash; ' + fmt(cur.arr) + '</b></div>' +
+    '<div><span>Bus</span><b>' + esc(cur.b.name) + ' (' + esc(cur.b.type) + ')</b></div>' +
+    '<div><span>Seats</span><b>' + seats.join(', ') + '</b></div>' +
+    '<div><span>Total fare</span><b>&#8377;' + (seats.length * s.fare).toFixed(2) + '</b></div></div>' +
+    '<button class="chip big" id="trackBtn" type="button" style="width:100%;margin:0 0 10px">&#128652; Track this bus</button><button class="go" id="doneBtn" type="button">Done</button>';
+}
+// ================= Splash screen =================
+(function () {
+  var sp = document.getElementById('splash');
+  if (!sp) return;
+  var done = false;
+  function hide() {
+    if (done) return; done = true;
+    sp.classList.add('hide');
+    setTimeout(function () { sp.style.display = 'none'; }, 600);
+  }
+  setTimeout(hide, 2300);          // hides by itself after about 2 seconds
+  sp.addEventListener('click', hide); // or tap to skip
+})();
+
+// ================= Live location & bus tracking =================
+function km(a, b) {                                   // distance between two [lat, lon] points
+  var R = 6371, r = Math.PI / 180, dLa = (b[0] - a[0]) * r, dLo = (b[1] - a[1]) * r;
+  var x = Math.sin(dLa / 2) * Math.sin(dLa / 2) + Math.cos(a[0] * r) * Math.cos(b[0] * r) * Math.sin(dLo / 2) * Math.sin(dLo / 2);
+  return 2 * R * Math.asin(Math.sqrt(x));
+}
+function fmtMs(ms) {
+  var m = Math.max(1, Math.round(ms / 60000)), d = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60);
+  return d ? d + 'd ' + h + 'h' : h ? h + 'h ' + (m % 60) + 'm' : m + ' min';
+}
+
+// 1) "Use my location": fills From with the nearest city
+$('locBtn').onclick = function () {
+  var msg = $('locMsg');
+  if (!navigator.geolocation) { msg.textContent = 'Location is not supported on this browser. Type your city instead.'; return; }
+  msg.textContent = 'Finding your location...';
+  navigator.geolocation.getCurrentPosition(function (p) {
+    var me = [p.coords.latitude, p.coords.longitude], best = null, d;
+    Object.keys(cityCoords).forEach(function (c) { d = km(me, cityCoords[c]); if (!best || d < best.d) best = { c: c, d: d }; });
+    $('from').value = best.c;
+    msg.textContent = 'Nearest bus city: ' + best.c + ' (' + Math.round(best.d) + ' km away).' +
+      (best.d > 150 ? ' That is far from you, so check the city.' : '');
+  }, function (err) {
+    msg.textContent = err.code === 1 ? 'Location is blocked. Allow it for this site in Chrome settings, or type your city.'
+                                     : 'Could not get your location. Type your city instead.';
+  }, { enableHighAccuracy: true, timeout: 10000 });
+};
+
+// 2) My trips (saved on this phone)
+var trips = [], lastTrip = null, trk = null, tick = null, watchId = null, myPos = null, locErr = '';
+try { trips = JSON.parse(localStorage.getItem('busTrips') || '[]'); } catch (e) {}
+function addTrip(t) { trips.push(t); try { localStorage.setItem('busTrips', JSON.stringify(trips)); } catch (e) {} }
+function tripsHtml() {
+  if (!trips.length) return '';
+  return '<h2>My trips</h2>' + trips.slice(-3).reverse().map(function (t) {
+    var s = schedules[t.i], d = new Date(t.date + 'T' + s.dep);
+    return '<div class="card"><div class="route">' + esc(s.from) + ' &rarr; ' + esc(s.to) + '</div>' +
+      '<div class="type">' + d.toDateString() + ' &middot; ' + fmt(d) + ' &middot; seats ' + t.seats.join(', ') + '</div>' +
+      '<button class="trk" data-i="' + t.i + '" data-d="' + t.date + '">&#128652; Track bus</button></div>';
+  }).join('');
+}
+$('out').addEventListener('click', function (e) {
+  var b = e.target.closest('.trk'); if (b) openTrack(+b.getAttribute('data-i'), b.getAttribute('data-d'));
+});
+panel.addEventListener('click', function (e) {
+  if (e.target.id === 'trackBtn' && lastTrip) openTrack(lastTrip.i, lastTrip.date);
+});
+
+// 3) Tracking panel: bus position is estimated from the schedule; your position is live
+function openTrack(i, date) {
+  var s = schedules[i];
+  stopTrack(); trk = { i: i, date: date };
+  panel.innerHTML =
+    '<div class="ph"><div><div class="name">Track your bus</div><div class="route" style="margin:2px 0">' + esc(s.from) + ' &rarr; ' + esc(s.to) + '</div>' +
+    '<div class="type">' + esc(buses[s.bus].name) + ' &middot; departs ' + fmt(new Date(date + 'T' + s.dep)) + '</div></div>' +
+    '<button class="x" id="xBtn" type="button">&times;</button></div><div id="trk"></div>' +
+    '<p class="note">The bus position is estimated from its schedule. Real GPS tracking needs a tracker fitted in the bus.</p>';
+  sheet.classList.add('open'); document.body.style.overflow = 'hidden'; panel.scrollTop = 0;
+  updateTrack(); tick = setInterval(updateTrack, 5000);
+  myPos = null; locErr = '';
+  if (!navigator.geolocation) { locErr = 'Location is not supported on this browser.'; updateTrack(); return; }
+  watchId = navigator.geolocation.watchPosition(function (p) { myPos = p.coords; locErr = ''; updateTrack(); }, function (e) {
+    locErr = e.code === 1 ? 'Allow location in Chrome to see how far you are from the boarding point.' : 'Could not get your location.';
+    updateTrack();
+  }, { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 });
+}
+function updateTrack() {
+  var box = $('trk'); if (!box || !trk) { stopTrack(); return; }
+  var s = schedules[trk.i], dep = new Date(trk.date + 'T' + s.dep), arr = new Date(dep.getTime() + s.dur * 60000), now = new Date();
+  var p = Math.max(0, Math.min(1, (now - dep) / (arr - dep)));
+  var status = now < dep ? 'Departs in ' + fmtMs(dep - now)
+             : now > arr ? 'Arrived at ' + esc(s.to) + ' at ' + fmt(arr)
+             : 'On the way &middot; arrives in ' + fmtMs(arr - now);
+  var left = Math.round(km(cityCoords[s.from], cityCoords[s.to]) * 1.3 * (1 - p));
+  var me = myPos ? 'You are ' + Math.round(km([myPos.latitude, myPos.longitude], cityCoords[s.from])) + ' km from the ' + esc(s.from) + ' boarding point.'
+                 : (locErr || 'Finding your location...');
+  box.innerHTML = '<div class="status">' + status + '</div>' +
+    '<div class="track"><span class="tl"><span class="tf" style="width:' + (p * 100) + '%"></span></span><span class="tb" style="left:' + (p * 100) + '%">&#128652;</span></div>' +
+    '<div class="tends"><span>' + esc(s.from) + '<br><small>' + fmt(dep) + '</small></span><span style="text-align:right">' + esc(s.to) + '<br><small>' + fmt(arr) + '</small></span></div>' +
+    '<div class="summary">' + Math.round(p * 100) + '% of the trip done &middot; about ' + left + ' km to go<br>' + me + '</div>';
+}
+function stopTrack() {
+  if (tick) { clearInterval(tick); tick = null; }
+  if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+  trk = null;
+}
+var _closeSheet = closeSheet;
+closeSheet = function () { stopTrack(); _closeSheet(); };
+
+// ================= My bookings: upcoming and previous =================
+var bkTab = 'up', cancelId = null;
+function saveTrips() { try { localStorage.setItem('busTrips', JSON.stringify(trips)); } catch (e) {} }
+function tripTimes(t) {
+  var s = schedules[t.i], dep = new Date(t.date + 'T' + s.dep);
+  return { s: s, dep: dep, arr: new Date(dep.getTime() + s.dur * 60000) };
+}
+function splitTrips() {                               // upcoming = not cancelled and not yet arrived
+  var now = new Date(), up = [], past = [];
+  trips.forEach(function (t) { (t.status !== 'cancelled' && tripTimes(t).arr >= now ? up : past).push(t); });
+  up.sort(function (a, b) { return tripTimes(a).dep - tripTimes(b).dep; });
+  past.sort(function (a, b) { return tripTimes(b).dep - tripTimes(a).dep; });
+  return { up: up, past: past };
+}
+function updateMyBtn() { var n = splitTrips().up.length; $('myBtn').textContent = 'My bookings' + (n ? ' (' + n + ')' : ''); }
+updateMyBtn();
+
+function openBookings() {
+  stopTrack(); cancelId = null;
+  panel.innerHTML = '<div class="ph"><div class="name" style="font-size:1.2rem">My bookings</div><button class="x" id="xBtn" type="button">&times;</button></div><div id="bk"></div>';
+  sheet.classList.add('open'); document.body.style.overflow = 'hidden'; panel.scrollTop = 0;
+  renderBookings();
+}
+$('myBtn').onclick = openBookings;
+
+function renderBookings() {
+  var sp = splitTrips(), list = bkTab === 'up' ? sp.up : sp.past, now = new Date();
+  var html = '<div class="chips" style="margin:4px 0 2px">' +
+    '<button type="button" class="chip bktab' + (bkTab === 'up' ? ' on' : '') + '" data-tab="up">Upcoming (' + sp.up.length + ')</button>' +
+    '<button type="button" class="chip bktab' + (bkTab === 'past' ? ' on' : '') + '" data-tab="past">Past (' + sp.past.length + ')</button></div>';
+  if (!list.length) {
+    html += '<div class="empty">' + (bkTab === 'up'
+      ? 'You have no upcoming bookings.<br>Search a route and pick your seats to book a trip.<br><br><button type="button" class="go" id="goSearch">Search buses</button>'
+      : 'No past bookings yet.<br>Completed and cancelled trips will show here.') + '</div>';
+  }
+  list.forEach(function (t) {
+    var x = tripTimes(t), cancelled = t.status === 'cancelled', done = !cancelled && x.arr < now;
+    var badge = cancelled ? '<span class="badge out">Cancelled</span>' : done ? '<span class="badge low">Completed</span>' : '<span class="badge ok">Confirmed</span>';
+    var acts = (cancelled || done)
+      ? '<button type="button" class="chip again" data-i="' + t.i + '">Book again</button>'
+      : '<button type="button" class="trk" data-i="' + t.i + '" data-d="' + t.date + '">&#128652; Track bus</button>' +
+        '<button type="button" class="chip warnbtn cancelb" data-id="' + esc(t.id) + '">' + (cancelId === t.id ? 'Tap again to confirm' : 'Cancel booking') + '</button>';
+    html += '<div class="card"><div class="top"><div class="route" style="margin:0">' + esc(x.s.from) + ' &rarr; ' + esc(x.s.to) + '</div>' + badge + '</div>' +
+      '<div class="type" style="margin-top:6px">' + x.dep.toDateString() + ' &middot; ' + fmt(x.dep) + ' &ndash; ' + fmt(x.arr) + '</div>' +
+      '<div class="type">' + esc(buses[x.s.bus].name) + ' &middot; seats ' + t.seats.join(', ') + (t.name ? ' &middot; ' + esc(t.name) : '') + '</div>' +
+      '<div class="top" style="margin-top:8px"><span class="type">ID ' + esc(t.id) + '</span><span class="fare" style="font-size:1.1rem">&#8377;' + (x.s.fare * t.seats.length).toFixed(2) + '</span></div>' +
+      '<div class="acts">' + acts + '</div></div>';
+  });
+  $('bk').innerHTML = html;
+  updateMyBtn();
+}
+
+function cancelBooking(id) {
+  var t = trips.filter(function (x) { return x.id === id; })[0];
+  if (!t) return;
+  var key = t.i + '|' + t.date;                       // free the seats again
+  userB[key] = (userB[key] || []).filter(function (n) { return t.seats.indexOf(n) < 0; });
+  t.status = 'cancelled';
+  saveB(); saveTrips(); cancelId = null; renderBookings();
+  walletOp('refund', { ref: t.id, amount: schedules[t.i].fare * t.seats.length }).then(refreshWal);
+}
+
+panel.addEventListener('click', function (e) {
+  var b = e.target.closest('button'); if (!b || !$('bk')) return;
+  if (b.classList.contains('bktab')) { bkTab = b.getAttribute('data-tab'); cancelId = null; renderBookings(); }
+  else if (b.classList.contains('trk')) openTrack(+b.getAttribute('data-i'), b.getAttribute('data-d'));
+  else if (b.classList.contains('cancelb')) {
+    var id = b.getAttribute('data-id');
+    if (cancelId === id) cancelBooking(id); else { cancelId = id; renderBookings(); }
+  } else if (b.classList.contains('again')) {
+    var s = schedules[+b.getAttribute('data-i')];
+    closeSheet(); $('from').value = s.from; $('to').value = s.to;
+    $('form').onsubmit({ preventDefault: function () {} }); window.scrollTo(0, 0);
+  } else if (b.id === 'goSearch') closeSheet();
+});
+
+// ================= Wallet (offline demo on this phone, or online with the PHP + MySQL server) =================
+var API_URL = '', paidRef = '';
+try { API_URL = localStorage.getItem('busApiUrl') || ''; } catch (e) {}
+var wl = { balance: 500, tx: [{ type: 'credit', amount: 500, desc: 'Welcome bonus', bal: 500, at: Date.now() }] };
+try { var wsaved = localStorage.getItem('busWallet'); if (wsaved) wl = JSON.parse(wsaved); } catch (e) {}
+function wAdd(type, amount, desc) {
+  wl.balance += type === 'credit' ? amount : -amount;
+  wl.tx.unshift({ type: type, amount: amount, desc: desc, bal: wl.balance, at: Date.now() });
+  try { localStorage.setItem('busWallet', JSON.stringify(wl)); } catch (e) {}
+}
+function localOp(op, d) {
+  if (op === 'topup') {
+    if (!(d.amount >= 10 && d.amount <= 50000)) return { error: 'Enter an amount from 10 to 50,000.' };
+    wAdd('credit', d.amount, 'Added money');
+  } else if (op === 'pay') {
+    if (wl.balance < d.amount) return { error: 'Not enough wallet balance. Add money first.' };
+    var ref = 'BUS' + Math.floor(100000 + Math.random() * 900000);
+    wAdd('debit', d.amount, 'Booking ' + ref);
+    return { balance: wl.balance, booking_ref: ref };
+  } else if (op === 'refund') wAdd('credit', d.amount, 'Refund ' + d.ref);
+  return { balance: wl.balance, transactions: wl.tx.slice(0, 30) };
+}
+function walletOp(op, d) {
+  if (!API_URL) return Promise.resolve(localOp(op, d || {}));
+  return fetch(API_URL + (API_URL.indexOf('?') > -1 ? '&' : '?') + 'op=' + op, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d || {}) })
+    .then(function (r) { return r.json(); })
+    .catch(function () { return { error: 'Cannot reach the database server. Check the URL and that XAMPP is running.' }; });
+}
+function refreshWal() {
+  return walletOp('wallet').then(function (r) {
+    $('walBtn').textContent = r.error ? 'Wallet' : 'Wallet \u20B9' + Math.round(r.balance);
+    return r;
+  });
+}
+refreshWal();
+function money(n) { return '&#8377;' + Number(n).toFixed(2); }
+
+function openWallet() {
+  stopTrack();
+  panel.innerHTML = '<div class="ph"><div class="name" style="font-size:1.2rem">My wallet</div><button class="x" id="xBtn" type="button">&times;</button></div><div id="wl"></div>';
+  sheet.classList.add('open'); document.body.style.overflow = 'hidden'; panel.scrollTop = 0;
+  renderWallet();
+}
+$('walBtn').onclick = openWallet;
+
+function renderWallet(note) {
+  walletOp('wallet').then(function (r) {
+    var box = $('wl'); if (!box) return;
+    var srv = '<div class="srv"><label for="apiIn">Database server URL (optional)</label><div class="wrow"><input id="apiIn" placeholder="http://192.168.1.5/bus_system/api.php" value="' + esc(API_URL) + '">' +
+      '<button type="button" class="chip" id="apiSave">Save</button></div><div class="type">Mode: ' + (API_URL ? 'Online (MySQL database)' : 'Offline demo (stored on this phone)') + '</div></div>';
+    if (r.error) { box.innerHTML = '<div class="alert err">' + esc(r.error) + '</div>' + srv; return; }
+    $('walBtn').textContent = 'Wallet \u20B9' + Math.round(r.balance);
+    box.innerHTML = '<div class="balcard"><small>Available balance</small><div class="big">' + money(r.balance) + '</div></div>' +
+      (note ? '<div class="msg">' + esc(note) + '</div>' : '') +
+      '<label>Add money</label><div class="chips" style="margin:0"><button type="button" class="chip wtop" data-amt="500">+ &#8377;500</button><button type="button" class="chip wtop" data-amt="1000">+ &#8377;1000</button><button type="button" class="chip wtop" data-amt="2000">+ &#8377;2000</button></div>' +
+      '<div class="wrow"><input id="wamt" type="number" inputmode="numeric" placeholder="Other amount"><button type="button" class="chip" id="wadd">Add</button></div>' +
+      '<h2>Transactions</h2>' + (r.transactions.length ? r.transactions.map(function (t) {
+        var d = new Date(t.at), c = t.type === 'credit';
+        return '<div class="tx"><div><b>' + esc(t.desc) + '</b><small>' + d.toDateString() + ', ' + fmt(d) + '</small></div>' +
+          '<div class="amt ' + t.type + '">' + (c ? '+' : '-') + money(t.amount) + '<small>Balance ' + money(t.bal) + '</small></div></div>';
+      }).join('') : '<div class="empty">No transactions yet.</div>') + srv;
+  });
+}
+panel.addEventListener('click', function (e) {
+  var b = e.target.closest('button'); if (!b || !$('wl')) return;
+  var amt = null;
+  if (b.classList.contains('wtop')) amt = +b.getAttribute('data-amt');
+  else if (b.id === 'wadd') amt = parseFloat($('wamt').value);
+  else if (b.id === 'apiSave') {
+    API_URL = $('apiIn').value.trim();
+    try { localStorage.setItem('busApiUrl', API_URL); } catch (x) {}
+    refreshWal(); renderWallet(); return;
+  }
+  if (amt !== null) walletOp('topup', { amount: amt }).then(function (r) { r.error ? renderWallet(r.error) : (refreshWal(), renderWallet('Money added.')); });
+});
+
+</script>
+</body>
+</html>
